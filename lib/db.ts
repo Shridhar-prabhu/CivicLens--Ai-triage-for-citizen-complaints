@@ -3,6 +3,7 @@ import path from "path";
 import type { Ticket, TicketStatus, OfficerOverrideInput, AuditEvent, Category, Severity } from "./schema";
 import { calculateSLADeadline, checkIsOverdue } from "./sla";
 import { calculatePriorityScore } from "./priority";
+import { SEED_TICKETS } from "./seed-data";
 
 const DB_PATH = path.join(process.cwd(), "data", "tickets.json");
 
@@ -17,7 +18,7 @@ function ensureDataDirectory() {
 }
 
 export function getAllTickets(): Ticket[] {
-  if (cachedTickets) {
+  if (cachedTickets && cachedTickets.length > 0) {
     // Dynamically recalculate overdue status on read
     return cachedTickets.map((t) => ({
       ...t,
@@ -27,13 +28,19 @@ export function getAllTickets(): Ticket[] {
 
   ensureDataDirectory();
   if (!fs.existsSync(DB_PATH)) {
-    cachedTickets = [];
-    return [];
+    cachedTickets = [...SEED_TICKETS];
+    saveAllTickets(cachedTickets);
+    return cachedTickets;
   }
 
   try {
     const raw = fs.readFileSync(DB_PATH, "utf-8");
     const parsed = JSON.parse(raw) as Ticket[];
+    if (!parsed || parsed.length === 0) {
+      cachedTickets = [...SEED_TICKETS];
+      saveAllTickets(cachedTickets);
+      return cachedTickets;
+    }
     cachedTickets = parsed.map((t) => ({
       ...t,
       is_overdue: checkIsOverdue(t.sla_deadline, t.status),
@@ -41,7 +48,8 @@ export function getAllTickets(): Ticket[] {
     return cachedTickets;
   } catch (err) {
     console.error("Failed to read tickets.json:", err);
-    return [];
+    cachedTickets = [...SEED_TICKETS];
+    return cachedTickets;
   }
 }
 
