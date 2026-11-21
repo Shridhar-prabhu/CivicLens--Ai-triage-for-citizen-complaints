@@ -23,20 +23,33 @@
 ### Q4: "What happens if the Gemini API goes down or hits rate limits during our demo?"
 > **Answer**: "CivicLens has zero demo failure risk. If the API fails or is unconfigured, it seamlessly and instantly switches to `/lib/fallback.ts` within 20 milliseconds, assigning accurate categories and severities with an honest 'Keyword Fallback' badge."
 
+### Q5: "How does your duplicate clustering work with GPS coordinates and text?"
+> **Answer**: "We employ a dual-strategy duplicate engine in `/lib/duplicates.ts`:
+> 1. **Geospatial Haversine Distance**: When two tickets in the same category have GPS coordinates, we compute their great-circle distance using the Haversine formula (`/lib/geo.ts`). If the distance is under 75 meters, they are unified into the same duplicate cluster, displaying an exact proximity tag like `~24 m from #CVL-101001`.
+> 2. **Text Jaccard Fallback**: If coordinates are absent or permission is denied, the system gracefully falls back to tokenized Jaccard similarity across normalized location hints.
+> 3. **Privacy First**: Exact device coordinates are never shown to the public on `/track/[id]`; only verified ward street addresses are displayed."
+
+### Q6: "Why did you use Leaflet and OpenStreetMap instead of Google Maps?"
+> **Answer**: "OpenStreetMap with Leaflet provides zero-cost, open-source compliance with no paid API keys that could expire during a competition demo. To ensure stability in Next.js App Router, all map components are dynamically imported with `ssr: false` to avoid SSR `window is not defined` errors. Nominatim reverse geocoding is strictly fired on user button click (not during pin drags) and wrapped in silent fail-safes."
+
 ---
 
 ## 2. File-by-File Guide
 
-- `lib/schema.ts`: Defines Zod schemas for `TriageResult`, `Ticket`, `PriorityBreakdown`, and `AuditEvent`.
+- `lib/schema.ts`: Defines Zod schemas for `TriageResult`, `Ticket`, `PriorityBreakdown`, `LocationSource`, and `AuditEvent`.
+- `lib/geo.ts`: Haversine formula (<75 m threshold), Bengaluru center coordinates, and safe reverse geocoding via Nominatim.
 - `lib/prompts.ts`: Contains the verbatim `SYSTEM_PROMPT` and `IMAGE_PROMPT_INSTRUCTION`.
 - `lib/fallback.ts`: Deterministic keyword matcher across 7 categories with priority bumping and language detection.
 - `lib/priority.ts`: Calculates the transparent 0–100 Priority Score and human-readable breakdown.
-- `lib/duplicates.ts`: Calculates token similarity (Jaccard) on location hints and categories to cluster duplicates.
+- `lib/duplicates.ts`: Dual-mode duplicate detector: Haversine distance (<75 m) with fallback to Jaccard text similarity.
 - `lib/sla.ts`: Assigns SLA deadlines (Critical 2h, High 24h, Med 72h, Low 7d) and calculates remaining time.
 - `lib/db.ts`: In-memory + atomic JSON file storage in `/data/tickets.json` seeded with 15 realistic civic complaints.
+- `components/MapPicker.tsx`: Citizen intake map with draggable pin and OpenStreetMap tiles.
+- `components/DashboardMapView.tsx`: Municipal command map view with severity-colored pins (Critical pulsing red) and cluster badges.
+- `components/MiniMap.tsx`: Read-only pin map displayed in officer ticket drawer.
 - `app/api/triage/route.ts`: API endpoint with Gemini REST call, timeout abort controller, retry, and fallback.
 - `app/api/tickets/route.ts`: GET (priority-sorted list) and POST (create ticket with clustering and SLA).
-- `app/page.tsx`: Landing page with hero, preset buttons, voice input, progress modal, and ticket card reveal.
-- `app/dashboard/page.tsx`: Municipal Officer Command Center with KPI stats, Recharts graphs, and ticket drawer.
-- `app/track/[id]/page.tsx`: Citizen tracking timeline.
-- `app/whatsapp-demo/page.tsx`: Simulated WhatsApp conversational intake channel.
+- `app/page.tsx`: Landing page with hero, preset buttons, voice input, map pin picker, and ticket card reveal.
+- `app/dashboard/page.tsx`: Municipal Officer Command Center with KPI stats, Recharts graphs, map view tab, and ticket drawer.
+- `app/track/[id]/page.tsx`: Citizen tracking timeline with privacy masking.
+- `app/whatsapp-demo/page.tsx`: Simulated WhatsApp conversational intake channel with simulated location sharing.

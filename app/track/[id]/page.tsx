@@ -108,11 +108,16 @@ export default function CitizenTrackPage({ params }: { params: { id: string } })
         {/* Complaint Details */}
         <div className="space-y-3">
           <h4 className="text-base font-semibold text-white">{ticket.summary}</h4>
-          {ticket.location_hint && (
-            <p className="flex items-center gap-1.5 text-xs text-cyan-300">
-              <MapPin className="h-3.5 w-3.5" />
-              <span>{ticket.location_hint}</span>
-            </p>
+          {(ticket.address_text || ticket.location_hint) && (
+            <div className="space-y-1">
+              <p className="flex items-center gap-1.5 text-xs text-cyan-300">
+                <MapPin className="h-3.5 w-3.5" />
+                <span>{ticket.address_text || ticket.location_hint}</span>
+              </p>
+              <p className="text-[10px] text-slate-500 italic">
+                🔒 For citizen privacy, exact GPS coordinates are masked; verified ward street address displayed.
+              </p>
+            </div>
           )}
           <div className="rounded-xl bg-slate-900/60 p-3.5 border border-slate-800 text-xs space-y-1">
             <span className="text-slate-500 font-semibold block">Action Plan:</span>

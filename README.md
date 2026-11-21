@@ -75,13 +75,16 @@ Or simply double-click `start.bat` on Windows!
 
 ## 💡 Innovation Features
 
+- **Geospatial Intake & Leaflet Map**: Browser Geolocation API, interactive draggable OpenStreetMap pin with Bengaluru default, and Nominatim reverse geocoding on button press. Privacy-first: exact device coordinates masked for citizens.
+- **Haversine Duplicate Clustering (<75 m)**: Detects physical duplicates within 75 meters in `/lib/geo.ts` (with `~X m from #ID` distance notes), seamlessly falling back to location_hint text similarity when GPS is absent.
+- **Municipal Command Map View**: Live interactive GIS map with severity color-coded markers (Critical red with pulse animation, High orange, Medium amber, Low green) and duplicate cluster badges.
 - **Multimodal Visual Hazard Verification**: Inspects uploaded hazard photos to confirm or correct citizen text (`image_changed_result: true`).
 - **Transparent Priority Score (0–100)**: Displays exact scoring factors ("Why this rank") based on base severity, sensitive proximity, duplicate clusters, and aging.
 - **Duplicate Clustering**: Unifies multiple citizen complaints on the same incident into one cluster with boosted priority.
 - **Officer Override & Audit Trail**: Enables municipal officers to reclassify tickets while tracking AI vs officer agreement rate.
 - **SLA Countdown Timers**: Visual warning indicators for tickets approaching or breaching municipal resolution targets.
-- **Citizen Status Tracking (`/track/[id]`)**: Public tracking view with live progress timeline.
-- **Simulated WhatsApp Intake (`/whatsapp-demo`)**: Demonstrates multi-channel citizen intake.
+- **Citizen Status Tracking (`/track/[id]`)**: Public tracking view with live progress timeline and masked street privacy.
+- **Simulated WhatsApp Intake (`/whatsapp-demo`)**: Demonstrates multi-channel citizen intake with intent pre-filters and simulated location sharing.
 
 ---
 
@@ -113,6 +116,7 @@ Or simply double-click `start.bat` on Windows!
 ## 📜 CREDITS
 
 - **Framework**: Next.js 14 App Router, React 18, TypeScript 5.
+- **Maps & Geospatial**: Leaflet (`leaflet`, `@types/leaflet`), OpenStreetMap tiles & attribution, OpenStreetMap Nominatim reverse geocoding.
 - **Styling & UI**: Tailwind CSS, Lucide React Icons, Framer Motion.
 - **Charts & Data Viz**: Recharts.
 - **Schema Validation**: Zod.

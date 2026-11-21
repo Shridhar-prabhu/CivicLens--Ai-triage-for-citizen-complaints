@@ -2,38 +2,72 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Send, UploadCloud, X, Mic, MicOff, Sparkles, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import {
+  Send,
+  UploadCloud,
+  X,
+  Mic,
+  MicOff,
+  Sparkles,
+  AlertCircle,
+  MapPin,
+  Navigation,
+  CheckCircle2,
+  Info,
+} from "lucide-react";
 import { TriageProgressModal } from "./TriageProgressModal";
 import { TicketCard } from "./TicketCard";
-import type { Ticket } from "@/lib/schema";
+import type { Ticket, LocationSource } from "@/lib/schema";
 import { preFilterIntent } from "@/lib/intent";
+import { BENGALURU_CENTER, reverseGeocodeSafe } from "@/lib/geo";
 
-// Pre-packaged test scenarios matching Section 7 requirements
+// Dynamic import of Leaflet map with ssr: false (Rule 1 Requirement)
+const MapPicker = dynamic(() => import("./MapPicker"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-52 w-full rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-center text-xs text-slate-500">
+      Loading OpenStreetMap Leaflet Engine...
+    </div>
+  ),
+});
+
 const SAMPLE_COMPLAINTS = [
   {
     label: "English (Critical Wire)",
     tag: "English • Live Wire",
     text: "Electric wire has fallen on the footpath outside Govt Primary School, 5th Cross, Jayanagar. Kids walk here every morning.",
+    lat: 12.9250,
+    lng: 77.5938,
+    address: "5th Cross, Jayanagar, Bengaluru",
   },
   {
     label: "Hindi (High Pothole)",
     tag: "Hindi • Accident",
     text: "सड़क पर बहुत बड़ा गड्ढा है, कल रात एक बाइक वाला गिर गया। अस्पताल रोड, सेक्टर 4।",
+    lat: 12.9352,
+    lng: 77.6245,
+    address: "Hospital Road, Sector 4, HSR Layout, Bengaluru",
   },
   {
     label: "Kannada (Critical Water Burst)",
     tag: "Kannada • Flooding",
     text: "ನಮ್ಮ ಮನೆ ಹತ್ತಿರ ದೊಡ್ಡ ನೀರಿನ ಪೈಪ್ ಒಡೆದು ರಸ್ತೆಯ ತುಂಬ ನೀರು ಹರಿಯುತ್ತಿದೆ, ಬೆಳಿಗ್ಗೆಯಿಂದ ನೀರು ಬರುತ್ತಿಲ್ಲ.",
+    lat: 12.9783,
+    lng: 77.6408,
+    address: "100ft Road, Indiranagar, Bengaluru",
   },
   {
     label: "With Hazard Photo",
     tag: "Multimodal • Fallen Tree",
     text: "Massive tree branch collapsed onto high-voltage power lines and blocked the main intersection near Metro Station.",
     hasSamplePhoto: true,
+    lat: 12.9754,
+    lng: 77.6066,
+    address: "MG Road Metro Station, Bengaluru",
   },
 ];
 
-// Placeholder 1x1 transparent PNG data url or real SVG data url for sample hazard photo
 const SAMPLE_HAZARD_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
@@ -42,6 +76,15 @@ export function ComplaintForm() {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Geospatial state
+  const [lat, setLat] = useState<number>(BENGALURU_CENTER.lat);
+  const [lng, setLng] = useState<number>(BENGALURU_CENTER.lng);
+  const [addressText, setAddressText] = useState("");
+  const [locationSource, setLocationSource] = useState<LocationSource>("none");
+  const [isLocating, setIsLocating] = useState(false);
+  const [geoNotice, setGeoNotice] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdTicket, setCreatedTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +125,54 @@ export function ComplaintForm() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Web Speech API Voice Transcription (Progressive Enhancement)
+  // Browser Geolocation API Handler (Rule 1 Requirement)
+  const handleUseCurrentLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setGeoNotice("Geolocation is not supported by your browser. You can drag the pin on the map.");
+      return;
+    }
+
+    setIsLocating(true);
+    setGeoNotice("Acquiring GPS coordinates...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const userLat = Number(pos.coords.latitude.toFixed(6));
+        const userLng = Number(pos.coords.longitude.toFixed(6));
+        setLat(userLat);
+        setLng(userLng);
+        setLocationSource("gps");
+        setGeoNotice("📍 GPS location acquired.");
+        setIsLocating(false);
+
+        // Reverse geocode via Nominatim (Safe button-triggered call)
+        const addr = await reverseGeocodeSafe(userLat, userLng);
+        if (addr) {
+          setAddressText(addr);
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        if (err.code === 1) {
+          setGeoNotice("Location permission was denied. You can continue without location or drag the map pin.");
+        } else if (err.code === 3) {
+          setGeoNotice("Location request timed out. You can continue or drag the pin manually.");
+        } else {
+          setGeoNotice("Unable to detect GPS. Feel free to drag the pin or type a landmark.");
+        }
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  };
+
+  const handleMapPinChange = (newLat: number, newLng: number) => {
+    setLat(newLat);
+    setLng(newLng);
+    setLocationSource("map_pin");
+    setGeoNotice(`📍 Location updated via map pin: ${newLat.toFixed(4)}, ${newLng.toFixed(4)}`);
+  };
+
+  // Web Speech API Voice Transcription
   const toggleSpeechRecognition = () => {
     if (typeof window === "undefined") return;
 
@@ -125,6 +215,12 @@ export function ComplaintForm() {
     setText(sample.text);
     setError(null);
     setCreatedTicket(null);
+    setLat(sample.lat);
+    setLng(sample.lng);
+    setAddressText(sample.address);
+    setLocationSource("map_pin");
+    setGeoNotice(`Preset location: ${sample.address}`);
+
     if (sample.hasSamplePhoto) {
       setImageBase64(SAMPLE_HAZARD_BASE64);
       setImageMime("image/png");
@@ -143,7 +239,7 @@ export function ComplaintForm() {
       return;
     }
 
-    // Intent Pre-Filter Check (Rule 5 Requirement)
+    // Intent Pre-Filter Check
     const pre = preFilterIntent(cleanText);
     if (pre.isPreFiltered && pre.intent !== "complaint") {
       if (pre.intent === "greeting") {
@@ -171,6 +267,10 @@ export function ComplaintForm() {
           image_base64: imageBase64,
           image_mime: imageMime,
           channel: "web_citizen",
+          lat: locationSource !== "none" ? lat : undefined,
+          lng: locationSource !== "none" ? lng : undefined,
+          address_text: addressText.trim() || undefined,
+          location_source: locationSource,
         }),
       });
 
@@ -295,7 +395,7 @@ export function ComplaintForm() {
             >
               <UploadCloud className="h-8 w-8 text-cyan-400 mb-2 opacity-80" />
               <p className="text-xs font-semibold text-slate-300">
-                Click to upload or drag & drop a photo
+                Click to upload or drag &amp; drop a photo
               </p>
               <p className="text-[11px] text-slate-500 mt-1">
                 Visual analysis verifies severity and detects hidden hazards
@@ -309,6 +409,65 @@ export function ComplaintForm() {
               />
             </div>
           )}
+        </div>
+
+        {/* Location Section (Rule 1 Requirement) */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 sm:p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="text-sm font-semibold text-white flex items-center gap-1.5">
+                <MapPin className="h-4 w-4 text-cyan-400" />
+                Incident Location <span className="text-xs font-normal text-slate-400">(Optional)</span>
+              </span>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Pinpoint where the repair crew should be dispatched.
+              </p>
+            </div>
+
+            {/* Geolocation Button */}
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocating}
+              className="flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 px-3 py-1.5 text-xs font-medium text-cyan-400 transition-colors disabled:opacity-50"
+            >
+              <Navigation className={`h-3.5 w-3.5 ${isLocating ? "animate-spin" : ""}`} />
+              <span>{isLocating ? "Locating..." : "Use my current location"}</span>
+            </button>
+          </div>
+
+          {geoNotice && (
+            <p className="text-xs text-cyan-300 bg-cyan-950/40 border border-cyan-800/40 px-3 py-1.5 rounded-xl font-mono">
+              {geoNotice}
+            </p>
+          )}
+
+          {/* Leaflet Draggable Pin Map */}
+          <div>
+            <MapPicker lat={lat} lng={lng} onChange={handleMapPinChange} />
+          </div>
+
+          {/* Address / Landmark text input */}
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">
+              Address / Landmark / Street Name
+            </label>
+            <input
+              type="text"
+              value={addressText}
+              onChange={(e) => setAddressText(e.target.value)}
+              placeholder="e.g. 5th Cross, near Govt School, Jayanagar Ward 142"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3.5 py-2 text-xs text-slate-200 placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Privacy Notice */}
+          <div className="flex items-start gap-1.5 text-[11px] text-slate-500">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
+            <span>
+              <strong>Privacy guarantee:</strong> We only store coordinates to route municipal repair crews to the exact spot. No personal device identifiers or tracking cookies are ever recorded.
+            </span>
+          </div>
         </div>
 
         {error && (
@@ -325,7 +484,7 @@ export function ComplaintForm() {
           className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-600 py-3.5 px-6 font-semibold text-sm text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           <Send className="h-4 w-4" />
-          <span>Triage & Route Complaint Now</span>
+          <span>Triage &amp; Route Complaint Now</span>
         </button>
       </form>
 
@@ -337,7 +496,7 @@ export function ComplaintForm() {
         <div className="space-y-4 animate-slide-up">
           <div className="flex items-center gap-2 text-emerald-400 text-sm font-semibold">
             <CheckCircle2 className="h-4 w-4" />
-            <span>Ticket Successfully Triaged & Routed to Municipal System:</span>
+            <span>Ticket Successfully Triaged &amp; Routed to Municipal System:</span>
           </div>
           <TicketCard ticket={createdTicket} />
         </div>

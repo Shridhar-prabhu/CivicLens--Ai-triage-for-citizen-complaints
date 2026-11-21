@@ -66,7 +66,9 @@ export function calculatePriorityScore(params: {
     reasons.push("Sensitive location proximity: +20 pts");
   }
   if (duplicate_frequency_boost > 0) {
-    reasons.push(`${duplicate_count} reports clustered: +${duplicate_frequency_boost} pts`);
+    reasons.push(`Duplicate cluster reports (${duplicate_count} citizens): +${duplicate_frequency_boost} pts`);
+  } else {
+    reasons.push(`Duplicate frequency: 1 report (0 pts)`);
   }
   if (aging_boost > 0) {
     reasons.push(`Awaiting triage for ${Math.round(ageHours)}h: +${aging_boost} pts`);

@@ -97,11 +97,29 @@ export function TicketCard({ ticket, compact = false }: TicketCardProps) {
       <div className="mt-4 space-y-3.5">
         <div>
           <h4 className="text-base sm:text-lg font-semibold text-white tracking-tight">{ticket.summary}</h4>
-          {ticket.location_hint && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
-              <MapPin className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-              <span>{ticket.location_hint}</span>
-            </p>
+          {(ticket.address_text || ticket.location_hint) && (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <MapPin className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                <span>{ticket.address_text || ticket.location_hint}</span>
+              </span>
+              {typeof ticket.lat === "number" && typeof ticket.lng === "number" && (
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${ticket.lat}&mlon=${ticket.lng}#map=16/${ticket.lat}/${ticket.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-cyan-400 hover:underline inline-flex items-center gap-1"
+                >
+                  <span>Open in Map</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {ticket.duplicate_note && (
+                <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
+                  📍 {ticket.duplicate_note}
+                </span>
+              )}
+            </div>
           )}
         </div>
 

@@ -67,11 +67,20 @@ export const PriorityBreakdownSchema = z.object({
 });
 export type PriorityBreakdown = z.infer<typeof PriorityBreakdownSchema>;
 
+export const LocationSourceSchema = z.enum(["gps", "map_pin", "text_only", "none"]);
+export type LocationSource = z.infer<typeof LocationSourceSchema>;
+
 export const TicketSchema = z.object({
   id: z.string(),
   created_at: z.string(),
   raw_text: z.string(),
   image_url: z.string().optional(),
+  
+  // Location & Geospatial
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  address_text: z.string().optional(),
+  location_source: LocationSourceSchema.default("none"),
   
   // Triage output
   intent: IntentSchema.optional(),
@@ -102,6 +111,9 @@ export const TicketSchema = z.object({
   cluster_id: z.string().optional(),
   duplicate_count: z.number().default(1),
   possible_duplicate_of: z.string().optional(),
+  duplicate_of: z.string().optional(),
+  duplicate_distance_meters: z.number().optional(),
+  duplicate_note: z.string().optional(),
 
   // Human review & override
   needs_human_review: z.boolean().default(false),
@@ -126,6 +138,10 @@ export const CreateComplaintSchema = z.object({
   image_base64: z.string().optional(),
   image_mime: z.string().optional(),
   channel: z.enum(["web_citizen", "whatsapp", "sms", "voice"]).default("web_citizen"),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  address_text: z.string().optional(),
+  location_source: LocationSourceSchema.optional().default("none"),
 });
 export type CreateComplaintInput = z.infer<typeof CreateComplaintSchema>;
 

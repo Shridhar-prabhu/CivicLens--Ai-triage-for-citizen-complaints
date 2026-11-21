@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import type { Ticket, Category, Severity, TicketStatus } from "@/lib/schema";
 import { PriorityBadge } from "./PriorityBadge";
 import { formatTimeRemaining } from "@/lib/sla";
@@ -22,6 +23,8 @@ import {
   AlertOctagon,
   Image as ImageIcon,
 } from "lucide-react";
+
+const MiniMap = dynamic(() => import("./MiniMap"), { ssr: false });
 
 interface TicketDrawerProps {
   ticket: Ticket | null;
@@ -316,6 +319,24 @@ export function TicketDrawer({ ticket, onClose, onUpdate }: TicketDrawerProps) {
                 </p>
               )}
 
+              {ticket.address_text && (
+                <p className="text-xs text-slate-300">
+                  <span className="text-slate-500 font-semibold mr-1">Address:</span>
+                  <span>{ticket.address_text}</span>
+                </p>
+              )}
+
+              {typeof ticket.lat === "number" && typeof ticket.lng === "number" && (
+                <div className="pt-2">
+                  <MiniMap
+                    lat={ticket.lat}
+                    lng={ticket.lng}
+                    severity={ticket.severity}
+                    address={ticket.address_text || ticket.location_hint}
+                  />
+                </div>
+              )}
+
               {ticket.detected_language && ticket.detected_language !== "English" && (
                 <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1">
                   <div className="flex items-center gap-1 text-xs text-slate-400">
@@ -380,6 +401,12 @@ export function TicketDrawer({ ticket, onClose, onUpdate }: TicketDrawerProps) {
                   <Layers className="h-4 w-4" />
                   <span>Clustered Duplicate Issue ({ticket.duplicate_count} citizens reported this)</span>
                 </div>
+                {ticket.duplicate_note && (
+                  <div className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-2 py-0.5 text-[11px] font-mono text-amber-200 border border-amber-500/30">
+                    <MapPin className="h-3 w-3 text-amber-400" />
+                    <span>Geo Clustered: {ticket.duplicate_note}</span>
+                  </div>
+                )}
                 <p className="text-xs text-slate-400">
                   Multiple citizen reports in this category and ward have been unified into Cluster{" "}
                   <code className="text-amber-200">{ticket.cluster_id || ticket.id}</code> to eliminate duplicate work orders.

@@ -163,12 +163,14 @@ export async function POST(req: NextRequest) {
 
     const existingTickets = getAllTickets();
 
-    // 2. Duplicate clustering
+    // 2. Duplicate clustering (Haversine <= 75m or Textual Fallback)
     const dupCheck = findPossibleDuplicate(
       {
         category: triageData.category,
         location_hint: triageData.location_hint,
         raw_text: rawText,
+        lat: typeof body.lat === "number" ? body.lat : undefined,
+        lng: typeof body.lng === "number" ? body.lng : undefined,
       },
       existingTickets
     );
@@ -192,6 +194,13 @@ export async function POST(req: NextRequest) {
       created_at: createdAtIso,
       raw_text: rawText,
       image_url: body.image_url || (body.image_base64 ? `data:${body.image_mime || "image/jpeg"};base64,${body.image_base64}` : undefined),
+      
+      // Location fields
+      lat: typeof body.lat === "number" ? body.lat : undefined,
+      lng: typeof body.lng === "number" ? body.lng : undefined,
+      address_text: body.address_text || triageData.location_hint || undefined,
+      location_source: body.location_source || (typeof body.lat === "number" ? "map_pin" : "none"),
+
       intent: "complaint",
       category: triageData.category,
       severity: triageData.severity,
@@ -200,7 +209,7 @@ export async function POST(req: NextRequest) {
       summary: triageData.summary,
       detected_language: triageData.detected_language,
       translated_text: triageData.translated_text,
-      location_hint: triageData.location_hint,
+      location_hint: body.address_text || triageData.location_hint || "",
       confidence: triageData.confidence,
       suggested_action: triageData.suggested_action,
       urgency_signals: triageData.urgency_signals,
@@ -218,6 +227,8 @@ export async function POST(req: NextRequest) {
       cluster_id: dupCheck.clusterId,
       duplicate_count: dupCheck.clusterCount,
       possible_duplicate_of: dupCheck.duplicateOfId,
+      duplicate_distance_meters: dupCheck.distanceMeters,
+      duplicate_note: dupCheck.duplicateNote,
 
       needs_human_review: triageData.confidence < 0.6,
       is_overridden: false,

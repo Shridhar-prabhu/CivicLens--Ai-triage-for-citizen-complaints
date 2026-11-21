@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Send, ArrowLeft, Bot, CheckCheck, Sparkles, MessageSquare, ShieldAlert } from "lucide-react";
+import { Send, ArrowLeft, Bot, CheckCheck, Sparkles, MessageSquare, ShieldAlert, MapPin } from "lucide-react";
 import type { Ticket } from "@/lib/schema";
 import { preFilterIntent } from "@/lib/intent";
 
@@ -29,6 +29,11 @@ export default function WhatsAppDemoPage() {
   const [convState, setConvState] = useState<ConversationState>("idle");
   const [pendingText, setPendingText] = useState("");
   const [pendingTriage, setPendingTriage] = useState<any>(null);
+  const [simulatedLocation, setSimulatedLocation] = useState<{
+    lat: number;
+    lng: number;
+    address_text: string;
+  } | null>(null);
 
   const getTimeString = () =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -70,6 +75,10 @@ export default function WhatsAppDemoPage() {
             body: JSON.stringify({
               text: pendingTriage.raw_text || pendingText,
               channel: "whatsapp",
+              lat: simulatedLocation?.lat,
+              lng: simulatedLocation?.lng,
+              address_text: simulatedLocation?.address_text,
+              location_source: simulatedLocation ? "gps" : "none",
             }),
           });
           const ticket: Ticket = await res.json();
@@ -79,6 +88,8 @@ export default function WhatsAppDemoPage() {
             `• Category: ${ticket.category}\n` +
             `• Severity: ${ticket.severity} (${ticket.severity_reason})\n` +
             `• Routed To: ${ticket.department}\n` +
+            (ticket.address_text ? `• Location: ${ticket.address_text} (Simulated GPS)\n` : "") +
+            (ticket.duplicate_note ? `• Clustering: ${ticket.duplicate_note}\n` : "") +
             `• SLA Resolution Target: ${ticket.sla_hours} hours\n\n` +
             `You can track live field updates here: /track/${ticket.id}`,
             ticket
@@ -86,6 +97,7 @@ export default function WhatsAppDemoPage() {
           setConvState("idle");
           setPendingTriage(null);
           setPendingText("");
+          setSimulatedLocation(null);
         } else if (lower === "edit" || lower === "no" || lower === "change") {
           addBotMessage(
             "Understood. Please re-type your complaint with the corrected details, location, and issue description."
@@ -195,7 +207,8 @@ export default function WhatsAppDemoPage() {
         `• Summary: ${triageData.summary}\n` +
         `• Category: *${triageData.category}*\n` +
         `• Severity: *${triageData.severity}* (${triageData.severity_reason})\n` +
-        `• Routed Department: ${triageData.department}\n\n` +
+        `• Routed Department: ${triageData.department}\n` +
+        (simulatedLocation ? `• Attached Location: ${simulatedLocation.address_text} (Simulated GPS)\n\n` : "\n") +
         `👉 *Reply YES to submit* or *EDIT* to change details.`
       );
     } catch {
@@ -282,6 +295,37 @@ export default function WhatsAppDemoPage() {
             <span className="font-mono font-bold">Reply YES / EDIT</span>
           </div>
         )}
+
+        {/* Location Attachment Bar (Simulated WhatsApp Location Sharing) */}
+        <div className="bg-[#17212b] px-3 py-1.5 flex items-center justify-between border-t border-[#2a3942] text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              if (simulatedLocation) {
+                setSimulatedLocation(null);
+              } else {
+                setSimulatedLocation({
+                  lat: 12.92501,
+                  lng: 77.59382,
+                  address_text: "5th Cross, Jayanagar, Bengaluru",
+                });
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+              simulatedLocation
+                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                : "bg-[#202c33] text-slate-300 border-slate-700 hover:bg-slate-700"
+            }`}
+          >
+            <MapPin className="h-3 w-3 text-cyan-400" />
+            <span>
+              {simulatedLocation
+                ? "📍 5th Cross Jayanagar (Simulated GPS Active)"
+                : "📍 Share location (Simulated)"}
+            </span>
+          </button>
+          <span className="text-[10px] text-slate-400">Attach coordinates</span>
+        </div>
 
         {/* Chat Input */}
         <form onSubmit={handleSendMessage} className="bg-[#1f2c34] p-3 flex items-center gap-2 border-t border-[#2a3942]">

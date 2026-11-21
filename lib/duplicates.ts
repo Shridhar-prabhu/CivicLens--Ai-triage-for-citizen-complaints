@@ -1,15 +1,16 @@
 import type { Category, Ticket } from "./schema";
+import { haversineDistanceMeters } from "./geo";
 
 /**
  * Duplicate Clustering & Similarity Engine
  * 
- * Requirements (Section 5):
- * - Group reports with the same category and a similar location hint into one cluster.
- * - Cluster priority rises with report count ("12 citizens reported this").
- * - Show a duplicate badge, "Possible duplicate of #ID" and a grouped view.
+ * Requirements (Rule 3):
+ * - If both tickets have GPS coordinates: treat as duplicate if same category and distance <= 75 m.
+ * - Distance note format: "~30 m from #ID".
+ * - If coordinates missing: fall back to location_hint / token similarity.
+ * - Cluster priority rises with duplicate count.
  */
 
-// Normalized text token overlap calculation (Jaccard similarity on tokens)
 function tokenSimilarity(a: string, b: string): number {
   if (!a || !b) return 0;
   const cleanA = a.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
@@ -30,38 +31,72 @@ function tokenSimilarity(a: string, b: string): number {
 }
 
 export function findPossibleDuplicate(
-  newComplaint: { category: Category; location_hint?: string; raw_text: string },
+  newComplaint: {
+    category: Category;
+    location_hint?: string;
+    raw_text: string;
+    lat?: number;
+    lng?: number;
+  },
   existingTickets: Ticket[]
 ): {
   isDuplicate: boolean;
   duplicateOfId?: string;
   clusterId?: string;
   clusterCount: number;
+  distanceMeters?: number;
+  duplicateNote?: string;
 } {
   const newLocation = newComplaint.location_hint?.trim() || "";
   const newText = newComplaint.raw_text.toLowerCase();
 
-  // Search existing tickets in the same category
+  // Search existing unresolved tickets in the same category
   const candidates = existingTickets.filter(
     (t) => t.status !== "resolved" && t.category === newComplaint.category
   );
 
   for (const candidate of candidates) {
+    const parentId = candidate.possible_duplicate_of || candidate.id;
+    const clusterId = candidate.cluster_id || `cluster-${parentId}`;
+
+    // 1. GEOSPATIAL DISTANCE CHECK (Primary: when both have coordinates)
+    if (
+      typeof newComplaint.lat === "number" &&
+      typeof newComplaint.lng === "number" &&
+      typeof candidate.lat === "number" &&
+      typeof candidate.lng === "number"
+    ) {
+      const distMeters = haversineDistanceMeters(
+        newComplaint.lat,
+        newComplaint.lng,
+        candidate.lat,
+        candidate.lng
+      );
+
+      // Within 75 meters threshold
+      if (distMeters <= 75) {
+        const currentInCluster = existingTickets.filter(
+          (t) => t.cluster_id === clusterId || t.id === parentId || t.possible_duplicate_of === parentId
+        ).length;
+
+        return {
+          isDuplicate: true,
+          duplicateOfId: parentId,
+          clusterId,
+          clusterCount: currentInCluster + 1,
+          distanceMeters: distMeters,
+          duplicateNote: `~${distMeters} m from #${parentId}`,
+        };
+      }
+    }
+
+    // 2. TEXTUAL SIMILARITY FALLBACK (When GPS is absent on either ticket)
     const candLocation = candidate.location_hint?.trim() || "";
-    
-    // 1. Direct location overlap
     const locationOverlap =
       newLocation && candLocation ? tokenSimilarity(newLocation, candLocation) : 0;
-
-    // 2. Text similarity
     const textOverlap = tokenSimilarity(newText, candidate.raw_text.toLowerCase());
 
-    // If both mention the exact same landmark/location or high textual resemblance
     if (locationOverlap > 0.4 || (locationOverlap > 0.2 && textOverlap > 0.3) || textOverlap > 0.6) {
-      const parentId = candidate.possible_duplicate_of || candidate.id;
-      const clusterId = candidate.cluster_id || `cluster-${parentId}`;
-      
-      // Count current items in this cluster
       const currentInCluster = existingTickets.filter(
         (t) => t.cluster_id === clusterId || t.id === parentId || t.possible_duplicate_of === parentId
       ).length;
@@ -71,6 +106,7 @@ export function findPossibleDuplicate(
         duplicateOfId: parentId,
         clusterId,
         clusterCount: currentInCluster + 1,
+        duplicateNote: `Near landmark from #${parentId}`,
       };
     }
   }

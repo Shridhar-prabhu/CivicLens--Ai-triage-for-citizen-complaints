@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { MetricCards } from "@/components/MetricCards";
 import { ChartsSection } from "@/components/ChartsSection";
 import { TicketDrawer } from "@/components/TicketDrawer";
@@ -21,8 +22,12 @@ import {
   ExternalLink,
   ShieldAlert,
   ArrowUpDown,
+  MapPin,
+  Map as MapIcon,
 } from "lucide-react";
 import Link from "next/link";
+
+const DashboardMapView = dynamic(() => import("@/components/DashboardMapView"), { ssr: false });
 
 const CATEGORIES = ["All", "Roads", "Waste", "Water", "Electricity", "Trees", "Drainage", "Other"];
 const SEVERITIES = ["All", "Critical", "High", "Medium", "Low"];
@@ -36,7 +41,7 @@ export default function DashboardPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSeverity, setSelectedSeverity] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
-  const [viewMode, setViewMode] = useState<"all" | "grouped">("all");
+  const [viewMode, setViewMode] = useState<"all" | "grouped" | "map">("all");
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
 
   const fetchDashboardData = async () => {
@@ -178,7 +183,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* View Mode Toggle: All vs Clustered Duplicates */}
+          {/* View Mode Toggle: All vs Clustered Duplicates vs Map View */}
           <div className="flex items-center gap-1 rounded-xl bg-slate-900 p-1 border border-slate-800 text-xs">
             <button
               onClick={() => setViewMode("all")}
@@ -195,6 +200,15 @@ export default function DashboardPage() {
               }`}
             >
               Cluster Groups ({clusteredGroups.length})
+            </button>
+            <button
+              onClick={() => setViewMode("map")}
+              className={`rounded-lg px-3 py-1.5 font-medium transition-colors flex items-center gap-1.5 ${
+                viewMode === "map" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <MapIcon className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Map View</span>
             </button>
           </div>
         </div>
@@ -280,6 +294,22 @@ export default function DashboardPage() {
             <p className="text-base font-semibold text-slate-300">No tickets match the selected filters</p>
             <p className="text-xs text-slate-500 mt-1">Try resetting filters or submitting a new citizen complaint.</p>
           </div>
+        ) : viewMode === "map" ? (
+          <div className="glass-panel rounded-2xl p-4 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+                Bengaluru Municipal Map View &bull; Pins colored by severity &bull; Duplicate clusters badged
+              </span>
+              <span className="font-mono text-[11px] text-cyan-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                {filteredTickets.filter((t) => typeof t.lat === "number").length} Geo-tagged Tickets
+              </span>
+            </div>
+            <DashboardMapView
+              tickets={filteredTickets}
+              onSelectTicket={(ticket) => setActiveTicket(ticket)}
+            />
+          </div>
         ) : viewMode === "all" ? (
           <div className="space-y-2.5">
             {filteredTickets.map((ticket) => {
@@ -326,9 +356,32 @@ export default function DashboardPage() {
                         <Building2 className="h-3.5 w-3.5 text-cyan-400" />
                         <span>{ticket.department}</span>
                       </span>
-                      {ticket.location_hint && (
+                      {ticket.address_text ? (
+                        <span className="truncate max-w-xs text-slate-400">
+                          &bull; {ticket.address_text}
+                        </span>
+                      ) : ticket.location_hint ? (
                         <span className="truncate max-w-xs text-slate-400">
                           &bull; {ticket.location_hint}
+                        </span>
+                      ) : null}
+
+                      {typeof ticket.lat === "number" && typeof ticket.lng === "number" && (
+                        <a
+                          href={`https://www.openstreetmap.org/?mlat=${ticket.lat}&mlon=${ticket.lng}#map=16/${ticket.lat}/${ticket.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:underline"
+                        >
+                          <MapPin className="h-3 w-3" />
+                          <span>Open in Map</span>
+                        </a>
+                      )}
+
+                      {ticket.duplicate_note && (
+                        <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-mono text-amber-300 border border-amber-500/30">
+                          {ticket.duplicate_note}
                         </span>
                       )}
                     </div>
