@@ -24,16 +24,29 @@ import {
   ArrowUpDown,
   MapPin,
   Map as MapIcon,
+  UserCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const DashboardMapView = dynamic(() => import("@/components/DashboardMapView"), { ssr: false });
 
 const CATEGORIES = ["All", "Roads", "Waste", "Water", "Electricity", "Trees", "Drainage", "Other"];
 const SEVERITIES = ["All", "Critical", "High", "Medium", "Low"];
 const STATUSES = ["All", "open", "in_progress", "resolved"];
+const DEPARTMENTS = [
+  "Roads & Infrastructure",
+  "Solid Waste Management",
+  "Water Supply & Sewerage Board",
+  "Electricity Dept / Streetlight Cell",
+  "Horticulture / Forest Cell",
+  "Storm Water Drain Dept",
+  "Ward Office",
+];
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const [officer, setOfficer] = useState<any>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -41,16 +54,39 @@ export default function DashboardPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSeverity, setSelectedSeverity] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
+  const [selectedDepartment, setSelectedDepartment] = useState("All");
   const [viewMode, setViewMode] = useState<"all" | "grouped" | "map">("all");
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      // 1. Fetch current officer session
+      const meRes = await fetch("/api/auth/me");
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.user) {
+          setOfficer(meData.user);
+          // Optional: default department filter to the officer's own department
+          if (meData.user.department) {
+            setSelectedDepartment(meData.user.department);
+          }
+        } else {
+          router.push("/login?redirect=/dashboard");
+          return;
+        }
+      }
+
+      // 2. Fetch tickets and stats
       const [ticketsRes, statsRes] = await Promise.all([
         fetch("/api/tickets"),
         fetch("/api/stats"),
       ]);
+
+      if (ticketsRes.status === 401) {
+        router.push("/login?redirect=/dashboard");
+        return;
+      }
 
       if (ticketsRes.ok) {
         const data = await ticketsRes.json();
@@ -95,6 +131,9 @@ export default function DashboardPage() {
       if (selectedStatus !== "All" && t.status.toLowerCase() !== selectedStatus.toLowerCase()) {
         return false;
       }
+      if (selectedDepartment !== "All" && t.department.toLowerCase() !== selectedDepartment.toLowerCase()) {
+        return false;
+      }
       if (search) {
         const q = search.toLowerCase();
         return (
@@ -107,7 +146,7 @@ export default function DashboardPage() {
       }
       return true;
     });
-  }, [tickets, selectedCategory, selectedSeverity, selectedStatus, search]);
+  }, [tickets, selectedCategory, selectedSeverity, selectedStatus, selectedDepartment, search]);
 
   // Grouped by duplicate clusters
   const clusteredGroups = useMemo(() => {
@@ -133,6 +172,12 @@ export default function DashboardPage() {
               Live Triage Feed
             </span>
           </div>
+          {officer && (
+            <p className="mt-1 text-xs text-cyan-300 flex items-center gap-1.5 font-medium">
+              <UserCheck className="h-3.5 w-3.5 text-cyan-400" />
+              <span>Officer on Duty: <strong>{officer.name}</strong> ({officer.title} &bull; {officer.department})</span>
+            </p>
+          )}
           <p className="mt-1 text-xs sm:text-sm text-slate-400">
             Real-time automated ticket sorting by priority (Critical &gt; High &gt; Medium &gt; Low) and SLA compliance.
           </p>
@@ -262,12 +307,28 @@ export default function DashboardPage() {
             </select>
           </div>
 
-          {(selectedCategory !== "All" || selectedSeverity !== "All" || selectedStatus !== "All" || search) && (
+          {/* Department Filter */}
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-slate-500">Dept:</span>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="rounded-lg bg-slate-900 border border-slate-800 px-2 py-1 text-slate-300 max-w-[150px] truncate"
+            >
+              <option value="All">All Departments</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          {(selectedCategory !== "All" || selectedSeverity !== "All" || selectedStatus !== "All" || selectedDepartment !== "All" || search) && (
             <button
               onClick={() => {
                 setSelectedCategory("All");
                 setSelectedSeverity("All");
                 setSelectedStatus("All");
+                setSelectedDepartment("All");
                 setSearch("");
               }}
               className="text-cyan-400 hover:underline ml-auto text-[11px]"
@@ -471,6 +532,7 @@ export default function DashboardPage() {
         ticket={activeTicket}
         onClose={() => setActiveTicket(null)}
         onUpdate={handleTicketUpdate}
+        officerName={officer?.name}
       />
     </div>
   );

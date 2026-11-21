@@ -30,6 +30,7 @@ interface TicketDrawerProps {
   ticket: Ticket | null;
   onClose: () => void;
   onUpdate: (updated: Ticket) => void;
+  officerName?: string;
 }
 
 const CATEGORIES: Category[] = ["Roads", "Waste", "Water", "Electricity", "Trees", "Drainage", "Other"];
@@ -44,7 +45,7 @@ const DEPARTMENTS = [
   "Ward Office",
 ];
 
-export function TicketDrawer({ ticket, onClose, onUpdate }: TicketDrawerProps) {
+export function TicketDrawer({ ticket, onClose, onUpdate, officerName }: TicketDrawerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [category, setCategory] = useState<Category>("Other");
   const [severity, setSeverity] = useState<Severity>("Medium");
@@ -79,7 +80,7 @@ export function TicketDrawer({ ticket, onClose, onUpdate }: TicketDrawerProps) {
         body: JSON.stringify({
           action: "update_status",
           status: newStatus,
-          officer_name: "Duty Officer",
+          officer_name: officerName || "Duty Officer",
         }),
       });
       if (res.ok) {
@@ -105,7 +106,7 @@ export function TicketDrawer({ ticket, onClose, onUpdate }: TicketDrawerProps) {
           department,
           assigned_to: assignedTo,
           reason: overrideReason || "Officer field reassessment",
-          officer_name: "Ward Officer",
+          officer_name: officerName || "Ward Officer",
         }),
       });
       if (res.ok) {

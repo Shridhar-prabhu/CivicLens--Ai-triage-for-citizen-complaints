@@ -7,6 +7,7 @@ import { fallbackTriage } from "@/lib/fallback";
 import { preFilterIntent } from "@/lib/intent";
 import { SYSTEM_PROMPT, IMAGE_PROMPT_INSTRUCTION } from "@/lib/prompts";
 import { TriageResultSchema, type Ticket, type Category, type Severity, type TicketStatus } from "@/lib/schema";
+import { getSessionFromRequest } from "@/lib/auth";
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   Critical: 4,
@@ -17,6 +18,21 @@ const SEVERITY_ORDER: Record<Severity, number> = {
 
 export async function GET(req: NextRequest) {
   try {
+    // Server-side authentication check (Requirement 3)
+    const session = await getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        { error: "Unauthorized. Officer authentication required to list municipal tickets." },
+        { status: 401 }
+      );
+    }
+    if (session.role !== "officer") {
+      return NextResponse.json(
+        { error: "Forbidden. Officer role required." },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
     const department = searchParams.get("department");

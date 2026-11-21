@@ -46,3 +46,19 @@
 2. **Ambiguity Overrides**: Manholes on roads strictly route to Drainage (Storm Water Drain Dept).
 3. **Multimodal Visual Hazard Confirmation**: `image_changed_result` flag confirms visual hazards directly from photo evidence.
 4. **Honest Confidence Calibration**: Ambiguous inputs are penalized below 0.60 to trigger officer review.
+
+---
+
+## 4. Role-Based Access Control (RBAC) & Security Verification
+
+| # | Security Test Scenario | Request Method & Endpoint | Expected Result | Actual Result | Status |
+|:---:|---|---|---|---|:---:|
+| **1** | **Unauthenticated Dashboard Access** | `GET /dashboard` (No session cookie) | 307 Redirect to `/login?redirect=%2Fdashboard` | HTTP 307 Redirect to `/login` | ✅ PASSED |
+| **2** | **Unauthenticated Direct API Call (Tickets List)** | `GET /api/tickets` (No session cookie) | `401 Unauthorized` with JSON error | `{"error": "Unauthorized. Officer authentication required to list municipal tickets."}` (HTTP 401) | ✅ PASSED |
+| **3** | **Unauthenticated Direct API Call (Stats)** | `GET /api/stats` (No session cookie) | `401 Unauthorized` with JSON error | `{"error": "Unauthorized. Officer authentication required to view municipal statistics."}` (HTTP 401) | ✅ PASSED |
+| **4** | **Unauthenticated Direct Mutation (Status/Override)** | `PATCH /api/tickets/CVL-101001` (No session cookie) | `401 Unauthorized` with JSON error | `{"error": "Unauthorized. Officer authentication required to update tickets."}` (HTTP 401) | ✅ PASSED |
+| **5** | **Anonymous Citizen Complaint Filing** | `POST /api/tickets` (No session cookie) | HTTP 200/201 Success; ticket created with public tracking ID | Successfully created `#CVL-101016` with zero authentication barrier | ✅ PASSED |
+| **6** | **Public Citizen Ticket Privacy Sanitization** | `GET /api/tickets/CVL-101001` (Anonymous citizen) | Only status, category, department, address returned. `audit_trail`, internal notes, and exact coordinates stripped. | Sanitized JSON returned without `audit_trail`, `officer_override`, or exact coordinates | ✅ PASSED |
+| **7** | **Officer 1-Click / Credential Authentication** | `POST /api/auth/login` (`ramesh@bbmp.gov.in`) | HTTP 200, signed `httpOnly` JWT session cookie issued | Cookie `civiclens_session` issued; redirected to `/dashboard` | ✅ PASSED |
+| **8** | **Officer Action & Named Audit Trail Logging** | `PATCH /api/tickets/CVL-101001` (Logged in as Ramesh Sharma) | Status updated; audit trail records `"Er. Ramesh Sharma"` | Audit event logged with actor `"Er. Ramesh Sharma"` | ✅ PASSED |
+| **9** | **Logout Session Revocation** | `POST /api/auth/logout` | Session cookie expired; subsequent `/dashboard` access redirects to `/login` | Cookie cleared; `/dashboard` blocked with 307 redirect | ✅ PASSED |

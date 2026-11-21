@@ -32,11 +32,19 @@
 ### Q6: "Why did you use Leaflet and OpenStreetMap instead of Google Maps?"
 > **Answer**: "OpenStreetMap with Leaflet provides zero-cost, open-source compliance with no paid API keys that could expire during a competition demo. To ensure stability in Next.js App Router, all map components are dynamically imported with `ssr: false` to avoid SSR `window is not defined` errors. Nominatim reverse geocoding is strictly fired on user button click (not during pin drags) and wrapped in silent fail-safes."
 
+### Q7: "How is access control handled between citizens and officers?"
+> **Answer**: "We enforce strict two-tier role-based access control:
+> 1. **Zero-Friction Anonymous Citizens**: Citizens file complaints and track status on `/`, `/whatsapp-demo`, and `/track/[id]` without creating an account. Public APIs sanitize records, stripping internal notes, audit logs, and raw GPS.
+> 2. **Server-Enforced Officer Authorization**: Next.js `middleware.ts` guards `/dashboard` and redirects unauthenticated users to `/login`. Officer API endpoints (`GET /api/tickets`, `GET /api/stats`, `PATCH /api/tickets/[id]`) verify signed, httpOnly HMAC-SHA256 JWT cookies, returning `401 Unauthorized` or `403 Forbidden` if missing.
+> 3. **Named Officer Auditability**: Every status update and reclassification override binds the authenticated officer's exact name and department into the immutable audit trail."
+
 ---
 
 ## 2. File-by-File Guide
 
 - `lib/schema.ts`: Defines Zod schemas for `TriageResult`, `Ticket`, `PriorityBreakdown`, `LocationSource`, and `AuditEvent`.
+- `lib/auth.ts`: Zero-dependency Web Crypto authentication, password hashing, signed JWT cookies, and seed accounts.
+- `middleware.ts`: Next.js Edge route guard protecting `/dashboard` and redirecting unauthenticated visitors to `/login`.
 - `lib/geo.ts`: Haversine formula (<75 m threshold), Bengaluru center coordinates, and safe reverse geocoding via Nominatim.
 - `lib/prompts.ts`: Contains the verbatim `SYSTEM_PROMPT` and `IMAGE_PROMPT_INSTRUCTION`.
 - `lib/fallback.ts`: Deterministic keyword matcher across 7 categories with priority bumping and language detection.
@@ -47,8 +55,11 @@
 - `components/MapPicker.tsx`: Citizen intake map with draggable pin and OpenStreetMap tiles.
 - `components/DashboardMapView.tsx`: Municipal command map view with severity-colored pins (Critical pulsing red) and cluster badges.
 - `components/MiniMap.tsx`: Read-only pin map displayed in officer ticket drawer.
+- `app/api/auth/login/route.ts`: Login API with 1-click demo sign-in and credential validation setting httpOnly cookie.
+- `app/api/auth/logout/route.ts`: Logout API that expires the session cookie.
+- `app/api/auth/me/route.ts`: Current officer session reader.
 - `app/api/triage/route.ts`: API endpoint with Gemini REST call, timeout abort controller, retry, and fallback.
-- `app/api/tickets/route.ts`: GET (priority-sorted list) and POST (create ticket with clustering and SLA).
+- `app/api/tickets/route.ts`: GET (officer-only protected list) and POST (public citizen intake with clustering and SLA).
 - `app/page.tsx`: Landing page with hero, preset buttons, voice input, map pin picker, and ticket card reveal.
 - `app/dashboard/page.tsx`: Municipal Officer Command Center with KPI stats, Recharts graphs, map view tab, and ticket drawer.
 - `app/track/[id]/page.tsx`: Citizen tracking timeline with privacy masking.

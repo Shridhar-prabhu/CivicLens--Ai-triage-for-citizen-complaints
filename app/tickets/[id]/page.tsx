@@ -33,8 +33,9 @@ export default function TicketDetailPage({ params }: { params: { id: string } })
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center space-y-4">
         <h3 className="text-xl font-bold text-white">Ticket Not Found</h3>
-        <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-semibold text-white">
-          <ArrowLeft className="h-4 w-4" /> Go to Dashboard
+        <p className="text-sm text-slate-400">The requested civic complaint could not be found.</p>
+        <Link href="/" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-semibold text-white">
+          <ArrowLeft className="h-4 w-4" /> Return to Home
         </Link>
       </div>
     );
@@ -43,10 +44,12 @@ export default function TicketDetailPage({ params }: { params: { id: string } })
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-400">
-          <ArrowLeft className="h-4 w-4" /> Back to Officer Dashboard
+        <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-400">
+          <ArrowLeft className="h-4 w-4" /> Back to Report Issue
         </Link>
-        <span className="text-xs font-mono text-slate-400">Official Municipal Record</span>
+        <Link href={`/track/${ticket.id}`} className="text-xs font-mono text-cyan-400 hover:underline">
+          View Live Tracking Timeline &rarr;
+        </Link>
       </div>
 
       <TicketCard ticket={ticket} />
