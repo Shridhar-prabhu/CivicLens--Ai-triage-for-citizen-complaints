@@ -1,4 +1,5 @@
 import type { Category, Severity, TriageResult } from "./schema";
+import { preFilterIntent } from "./intent";
 
 export const DEPARTMENTS: Record<Category, string> = {
   Roads: "Roads & Infrastructure",
@@ -112,10 +113,34 @@ export function fallbackTriage(rawText: string): TriageResult {
     reason = "Immediate safety hazard keywords found (live wire, open manhole, main burst or similar).";
   }
 
+  // Intent pre-check
+  const pre = preFilterIntent(rawText);
+  const intent = pre.intent;
+
+  if (intent !== "complaint") {
+    return {
+      intent,
+      category: "Other",
+      severity: "Low",
+      severity_reason: `Non-complaint input classified as ${intent}.`,
+      department: DEPARTMENTS.Other,
+      summary: rawText.trim().slice(0, 100),
+      detected_language: detectLanguage(rawText),
+      translated_text: rawText,
+      location_hint: "",
+      confidence: 0.95,
+      suggested_action: pre.botReply || "Acknowledge message without creating a complaint ticket.",
+      urgency_signals: [],
+      image_changed_result: false,
+      source: "fallback",
+    };
+  }
+
   // 3. Low confidence on purpose: keyword matching is not semantic understanding
   const confidence = best === "Other" ? 0.2 : Math.min(0.4 + bestScore * 0.1, 0.65);
 
   return {
+    intent: "complaint",
     category: best,
     severity,
     severity_reason: reason,

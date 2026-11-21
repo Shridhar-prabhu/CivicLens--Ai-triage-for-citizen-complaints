@@ -3,60 +3,203 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Send, ArrowLeft, Bot, User, CheckCheck, Sparkles, AlertCircle } from "lucide-react";
+import { Send, ArrowLeft, Bot, CheckCheck, Sparkles, MessageSquare, ShieldAlert } from "lucide-react";
 import type { Ticket } from "@/lib/schema";
+import { preFilterIntent } from "@/lib/intent";
+
+interface ChatMessage {
+  sender: "user" | "bot";
+  text: string;
+  time: string;
+  ticket?: Ticket;
+}
+
+type ConversationState = "idle" | "awaiting_details" | "awaiting_confirmation";
 
 export default function WhatsAppDemoPage() {
-  const [messages, setMessages] = useState<Array<{ sender: "user" | "bot"; text: string; time: string; ticket?: Ticket }>>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: "bot",
-      text: "Namaste! Welcome to Bangalore Municipal Corporation Civic Helpline (Simulated WhatsApp Bot). Please describe your civic issue in English, Hindi, or Kannada.",
+      text: "Namaste! Welcome to Bangalore Municipal Corporation Civic Helpline (Simulated WhatsApp Bot).\n\nDescribe the issue, add a photo if you can. Type 'status <ID>' to track a ticket, or type 'help' for options.",
       time: "10:00 AM",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [convState, setConvState] = useState<ConversationState>("idle");
+  const [pendingText, setPendingText] = useState("");
+  const [pendingTriage, setPendingTriage] = useState<any>(null);
 
-  const sendMessage = async (e: React.FormEvent) => {
+  const getTimeString = () =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const addBotMessage = (text: string, ticket?: Ticket) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "bot",
+        text,
+        time: getTimeString(),
+        ticket,
+      },
+    ]);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    const rawInput = input.trim();
+    if (!rawInput || loading) return;
 
-    const userText = input.trim();
-    const nowTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    setMessages((prev) => [...prev, { sender: "user", text: userText, time: nowTime }]);
+    // Append user message
+    setMessages((prev) => [
+      ...prev,
+      { sender: "user", text: rawInput, time: getTimeString() },
+    ]);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/tickets", {
+      // 1. STATE: Awaiting Confirmation (User previously triaged a complaint)
+      if (convState === "awaiting_confirmation" && pendingTriage) {
+        const lower = rawInput.toLowerCase().trim();
+        if (lower === "yes" || lower === "y" || lower === "haan" || lower === "submit" || lower === "ok") {
+          // Officially create ticket in backend
+          const res = await fetch("/api/tickets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: pendingTriage.raw_text || pendingText,
+              channel: "whatsapp",
+            }),
+          });
+          const ticket: Ticket = await res.json();
+
+          addBotMessage(
+            `✅ *Ticket #${ticket.id} Successfully Registered!*\n\n` +
+            `• Category: ${ticket.category}\n` +
+            `• Severity: ${ticket.severity} (${ticket.severity_reason})\n` +
+            `• Routed To: ${ticket.department}\n` +
+            `• SLA Resolution Target: ${ticket.sla_hours} hours\n\n` +
+            `You can track live field updates here: /track/${ticket.id}`,
+            ticket
+          );
+          setConvState("idle");
+          setPendingTriage(null);
+          setPendingText("");
+        } else if (lower === "edit" || lower === "no" || lower === "change") {
+          addBotMessage(
+            "Understood. Please re-type your complaint with the corrected details, location, and issue description."
+          );
+          setConvState("idle");
+          setPendingTriage(null);
+          setPendingText("");
+        } else {
+          addBotMessage(
+            "Please reply *YES* to confirm and dispatch this ticket, or *EDIT* to change the details."
+          );
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 2. STATE: Awaiting Follow-up Details (User previously sent vague message)
+      let textToTriage = rawInput;
+      if (convState === "awaiting_details" && pendingText) {
+        textToTriage = `${pendingText}. Location and issue details: ${rawInput}`;
+        setConvState("idle");
+        setPendingText("");
+      }
+
+      // 3. Fast Rule-Based Intent Pre-Filter
+      const pre = preFilterIntent(textToTriage);
+
+      if (pre.isPreFiltered && pre.intent !== "complaint") {
+        if (pre.intent === "greeting") {
+          addBotMessage(
+            "Namaste! Welcome to Bangalore Municipal Corporation Civic Helpline.\n\n" +
+            "• Describe the issue, add a photo if you can.\n" +
+            "• Type 'status <ID>' to track a ticket.\n" +
+            "• Type 'help' to see what I can do."
+          );
+        } else if (pre.intent === "help") {
+          addBotMessage(
+            pre.botReply ||
+            "🤖 *CivicLens Bot Capabilities:*\n\n" +
+            "1. *File Complaints*: Potholes, broken streetlights, water leaks, garbage, fallen trees, open drains.\n" +
+            "2. *Languages*: English, Hindi, Kannada, or mixed text.\n" +
+            "3. *Track Status*: Type 'status <TicketID>' to check resolution progress."
+          );
+        } else if (pre.intent === "status_query") {
+          const ticketId = pre.extractedTicketId;
+          if (ticketId) {
+            const checkRes = await fetch(`/api/tickets/${ticketId}`);
+            if (checkRes.ok) {
+              const t: Ticket = await checkRes.json();
+              addBotMessage(
+                `🔍 *Status for Ticket #${t.id}:*\n\n` +
+                `• Summary: ${t.summary}\n` +
+                `• Category: ${t.category} (${t.severity})\n` +
+                `• Routed To: ${t.department}\n` +
+                `• Current Status: *${t.status.toUpperCase()}*\n` +
+                `• SLA Target: ${t.sla_hours}h (${t.is_overdue ? "OVERDUE" : "Within SLA"})\n\n` +
+                `View live tracking timeline: /track/${t.id}`,
+                t
+              );
+            } else {
+              addBotMessage(`❌ Ticket '${ticketId}' was not found in the municipal system. Please verify your reference ID.`);
+            }
+          } else {
+            addBotMessage("Please provide your ticket reference number, e.g. 'status CVL-101001'.");
+          }
+        } else if (pre.intent === "chitchat_or_non_civic") {
+          addBotMessage(
+            "Thank you! Please reach out anytime you encounter civic issues (roads, garbage, water, electricity, drainage, trees). Have a great day!"
+          );
+        } else if (pre.intent === "needs_more_info") {
+          addBotMessage("Which area or landmark, and what is the issue? (e.g. 'Pothole on 100ft road near Metro station')");
+          setConvState("awaiting_details");
+          setPendingText(textToTriage);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 4. Intent is a Complaint -> Run Triage Pipeline (Do NOT create ticket yet)
+      const triageRes = await fetch("/api/triage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: userText, channel: "whatsapp" }),
+        body: JSON.stringify({ text: textToTriage }),
       });
 
-      const ticket: Ticket = await res.json();
+      const triageData = await triageRes.json();
 
-      const replyText = `✅ Ticket #${ticket.id} Registered!\n\n• Category: ${ticket.category}\n• Severity: ${ticket.severity} (${ticket.severity_reason})\n• Routed To: ${ticket.department}\n• SLA Target: ${ticket.sla_hours} hours\n\nTrack progress online: /track/${ticket.id}`;
+      // If AI determined intent is not complaint
+      if (triageData.intent && triageData.intent !== "complaint") {
+        if (triageData.intent === "needs_more_info") {
+          addBotMessage("Which area or landmark, and what is the issue?");
+          setConvState("awaiting_details");
+          setPendingText(textToTriage);
+        } else {
+          addBotMessage(triageData.suggested_action || "Please describe a specific civic issue to report.");
+        }
+        setLoading(false);
+        return;
+      }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          text: replyText,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          ticket,
-        },
-      ]);
+      // Show Confirmation Step (Requirement 3: "Reply YES to submit or EDIT to change")
+      setPendingTriage({ ...triageData, raw_text: textToTriage });
+      setConvState("awaiting_confirmation");
+
+      addBotMessage(
+        `📝 *I understood:*\n` +
+        `• Summary: ${triageData.summary}\n` +
+        `• Category: *${triageData.category}*\n` +
+        `• Severity: *${triageData.severity}* (${triageData.severity_reason})\n` +
+        `• Routed Department: ${triageData.department}\n\n` +
+        `👉 *Reply YES to submit* or *EDIT* to change details.`
+      );
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          text: "Sorry, unable to process your complaint right now. Please try again.",
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
+      addBotMessage("Unable to reach triage service right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -69,7 +212,7 @@ export default function WhatsAppDemoPage() {
           <ArrowLeft className="h-4 w-4" /> Back to CivicLens
         </Link>
         <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-          Simulated WhatsApp Intake
+          Simulated WhatsApp intake
         </span>
       </div>
 
@@ -86,7 +229,10 @@ export default function WhatsAppDemoPage() {
               <p className="text-[11px] text-emerald-400">Automated AI Triage Helpline</p>
             </div>
           </div>
-          <span className="text-[10px] text-slate-400 font-mono">Channel: WhatsApp</span>
+          <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+            <MessageSquare className="h-3 w-3 text-cyan-400" />
+            <span>Intent Filter Active</span>
+          </div>
         </div>
 
         {/* Message Thread */}
@@ -102,7 +248,7 @@ export default function WhatsAppDemoPage() {
               >
                 <p className="whitespace-pre-line leading-relaxed">{m.text}</p>
                 {m.ticket && (
-                  <div className="mt-2 pt-2 border-t border-slate-700/60">
+                  <div className="mt-2.5 pt-2 border-t border-slate-700/60">
                     <Link
                       href={`/track/${m.ticket.id}`}
                       className="text-cyan-400 font-semibold hover:underline flex items-center gap-1"
@@ -123,19 +269,33 @@ export default function WhatsAppDemoPage() {
             <div className="flex justify-start">
               <div className="bg-[#202c33] text-cyan-400 text-xs px-3 py-2 rounded-2xl rounded-tl-none flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 animate-spin" />
-                <span>CivicLens AI is triaging complaint...</span>
+                <span>CivicLens AI checking intent &amp; triaging...</span>
               </div>
             </div>
           )}
         </div>
 
+        {/* State Banner */}
+        {convState === "awaiting_confirmation" && (
+          <div className="bg-amber-500/10 border-t border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-[11px] text-amber-300">
+            <span>Awaiting your confirmation to submit</span>
+            <span className="font-mono font-bold">Reply YES / EDIT</span>
+          </div>
+        )}
+
         {/* Chat Input */}
-        <form onSubmit={sendMessage} className="bg-[#1f2c34] p-3 flex items-center gap-2 border-t border-[#2a3942]">
+        <form onSubmit={handleSendMessage} className="bg-[#1f2c34] p-3 flex items-center gap-2 border-t border-[#2a3942]">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type complaint in Hindi, Kannada or English..."
+            placeholder={
+              convState === "awaiting_confirmation"
+                ? "Reply 'YES' to submit or 'EDIT' to change..."
+                : convState === "awaiting_details"
+                ? "Provide location and defect details..."
+                : "Type complaint, 'status <ID>', or 'help'..."
+            }
             className="flex-1 rounded-xl bg-[#2a3942] px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none"
           />
           <button

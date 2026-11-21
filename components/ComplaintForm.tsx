@@ -6,6 +6,7 @@ import { Send, UploadCloud, X, Mic, MicOff, Sparkles, AlertCircle, FileText, Che
 import { TriageProgressModal } from "./TriageProgressModal";
 import { TicketCard } from "./TicketCard";
 import type { Ticket } from "@/lib/schema";
+import { preFilterIntent } from "@/lib/intent";
 
 // Pre-packaged test scenarios matching Section 7 requirements
 const SAMPLE_COMPLAINTS = [
@@ -136,8 +137,24 @@ export function ComplaintForm() {
   // Form Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || text.trim().length < 3) {
+    const cleanText = text.trim();
+    if (!cleanText || cleanText.length < 3) {
       setError("Please describe the issue in at least 3 characters.");
+      return;
+    }
+
+    // Intent Pre-Filter Check (Rule 5 Requirement)
+    const pre = preFilterIntent(cleanText);
+    if (pre.isPreFiltered && pre.intent !== "complaint") {
+      if (pre.intent === "greeting") {
+        setError("Namaste! Please enter an actual civic grievance (e.g. pothole, broken streetlight, garbage, water leak) rather than a greeting.");
+      } else if (pre.intent === "status_query") {
+        setError("To check ticket status, please visit the Citizen Tracking page (/track/[id]) or use 'status <ID>' on the WhatsApp helpline.");
+      } else if (pre.intent === "needs_more_info") {
+        setError("Your complaint needs a few more details: please mention the specific problem and the street/area so officers can locate it.");
+      } else {
+        setError("Please enter a civic issue (roads, water, electricity, waste, drainage, trees). Chit-chat and general queries cannot be triaged as tickets.");
+      }
       return;
     }
 
@@ -150,7 +167,7 @@ export function ComplaintForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: text.trim(),
+          text: cleanText,
           image_base64: imageBase64,
           image_mime: imageMime,
           channel: "web_citizen",
@@ -162,8 +179,14 @@ export function ComplaintForm() {
         throw new Error(errJson.error || "Failed to triage complaint.");
       }
 
-      const ticket: Ticket = await res.json();
-      setCreatedTicket(ticket);
+      const data = await res.json();
+
+      if (data.is_ticket === false) {
+        setError(data.message || "Message was identified as non-complaint. No ticket created.");
+        return;
+      }
+
+      setCreatedTicket(data as Ticket);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred while triaging.");
     } finally {

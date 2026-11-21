@@ -11,6 +11,16 @@ export const CategorySchema = z.enum([
 ]);
 export type Category = z.infer<typeof CategorySchema>;
 
+export const IntentSchema = z.enum([
+  "complaint",
+  "greeting",
+  "status_query",
+  "help",
+  "chitchat_or_non_civic",
+  "needs_more_info",
+]);
+export type Intent = z.infer<typeof IntentSchema>;
+
 export const SeveritySchema = z.enum(["Low", "Medium", "High", "Critical"]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
@@ -21,6 +31,7 @@ export type TicketStatus = z.infer<typeof TicketStatusSchema>;
  * Raw output schema from Gemini API / Fallback engine
  */
 export const TriageResultSchema = z.object({
+  intent: IntentSchema.default("complaint"),
   category: CategorySchema,
   severity: SeveritySchema,
   severity_reason: z.string(),
@@ -63,6 +74,7 @@ export const TicketSchema = z.object({
   image_url: z.string().optional(),
   
   // Triage output
+  intent: IntentSchema.optional(),
   category: CategorySchema,
   severity: SeveritySchema,
   severity_reason: z.string(),

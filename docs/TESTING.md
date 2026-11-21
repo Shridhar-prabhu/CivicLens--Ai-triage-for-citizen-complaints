@@ -1,8 +1,24 @@
 # CivicLens — AI Triage Testing & Prompt Calibration Report
 
-> **Stage 8 Benchmark**: Evaluation of the triage pipeline against 15 edge-case civic complaints.
+> **Stage 8 Benchmark & Intent Filter Testing**: Evaluation of the triage pipeline against 15 edge-case complaints and 7 conversation intent scenarios.
 
-## 1. 15-Case Benchmark Matrix
+---
+
+## 1. Intent Detection Benchmark (WhatsApp Demo & Citizen Portal)
+
+| # | User Input | Detected Intent | Action Taken | Ticket Created? | Match? |
+|---|---|---|---|:---:|:---:|
+| **1** | `"hi"` / `"namaste"` | `greeting` | Welcome message + filing instructions | ❌ No | ✅ |
+| **2** | `"thanks"` / `"ok"` | `chitchat_or_non_civic` | Polite civic helpline acknowledgment | ❌ No | ✅ |
+| **3** | `"help"` / `"menu"` | `help` | Capabilities and command list | ❌ No | ✅ |
+| **4** | `"status CL-1042"` | `status_query` | Looks up ticket `#CL-1042` and returns live status | ❌ No | ✅ |
+| **5** | `"something is wrong"` | `needs_more_info` | Asks follow-up: *"Which area and what is the issue?"* | ❌ No | ✅ |
+| **6** | `"Electric wire fallen outside school in Jayanagar"` | `complaint` | Prompts confirmation: *"Reply YES to submit or EDIT to change"*. Ticket created on YES. | ✅ Yes (on YES) | ✅ |
+| **7** | `"ನಮ್ಮ ಮನೆ ಹತ್ತಿರ ನೀರಿನ ಪೈಪ್ ಒಡೆದು ನೀರು ಹರಿಯುತ್ತಿದೆ"` | `complaint` | Prompts confirmation with Kannada detection. Ticket created on YES. | ✅ Yes (on YES) | ✅ |
+
+---
+
+## 2. 15-Case Complaint Triage Benchmark Matrix
 
 | # | Complaint Input Description | Language | Expected Category | Expected Severity | Pipeline Result | Match? | Notes & Calibrations |
 |---|---|---|---|---|---|:---:|---|
@@ -24,13 +40,9 @@
 
 ---
 
-## 2. Prompt & Triage Refinements Made During Testing
+## 3. Prompt & Triage Refinements Made During Testing
 
-1. **Ambiguity Overrides**:
-   - Manhole issues frequently got misclassified under "Roads" because they are on roads. Added explicit override: *"missing manhole covers on roads -> Drainage (Storm Water Drain Dept)"*.
-2. **Severity Inflation Control**:
-   - Citizens often write with angry capital letters ("VERY BAD SERVICE PLEASE FIX NOW"). Explicitly instructed the model: *"Do not inflate severity just because the writer is angry or uses capital letters."*
-3. **Multimodal Visual Hazard Confirmation**:
-   - Added `image_changed_result` flag: When a citizen writes a generic complaint but attaches a photo showing an arterial road blocked, the model upgrades severity and explains why in `severity_reason`.
-4. **Honest Confidence Calibration**:
-   - Inputs lacking location hints or specific defect types are penalized below 0.60 confidence to trigger the "Needs human review" banner on the officer dashboard.
+1. **Intent Gatekeeper Added**: Messages like "hi", "thanks", "menu", or status inquiries are filtered *before* creating tickets, preventing clutter in municipal databases.
+2. **Ambiguity Overrides**: Manholes on roads strictly route to Drainage (Storm Water Drain Dept).
+3. **Multimodal Visual Hazard Confirmation**: `image_changed_result` flag confirms visual hazards directly from photo evidence.
+4. **Honest Confidence Calibration**: Ambiguous inputs are penalized below 0.60 to trigger officer review.

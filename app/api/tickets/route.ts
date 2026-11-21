@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllTickets, saveTicket } from "@/lib/db";
+import { getAllTickets, saveTicket, getTicketById } from "@/lib/db";
 import { findPossibleDuplicate } from "@/lib/duplicates";
 import { calculatePriorityScore } from "@/lib/priority";
 import { calculateSLADeadline } from "@/lib/sla";
 import { fallbackTriage } from "@/lib/fallback";
+import { preFilterIntent } from "@/lib/intent";
 import { SYSTEM_PROMPT, IMAGE_PROMPT_INSTRUCTION } from "@/lib/prompts";
 import { TriageResultSchema, type Ticket, type Category, type Severity, type TicketStatus } from "@/lib/schema";
 
@@ -76,6 +77,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Complaint text is required" }, { status: 400 });
     }
 
+    // 0. Fast Intent Pre-Filter (Rule-based)
+    const pre = preFilterIntent(rawText);
+    if (pre.isPreFiltered && pre.intent !== "complaint") {
+      let statusTicket = null;
+      if (pre.intent === "status_query" && pre.extractedTicketId) {
+        statusTicket = getTicketById(pre.extractedTicketId);
+      }
+
+      return NextResponse.json({
+        is_ticket: false,
+        intent: pre.intent,
+        bot_reply: pre.botReply,
+        extracted_ticket_id: pre.extractedTicketId,
+        status_ticket: statusTicket,
+        message: pre.botReply || `Message recognized as ${pre.intent}. No ticket created.`,
+      });
+    }
+
     // 1. Triage the complaint
     let triageData: any = null;
     const apiKey = process.env.GEMINI_API_KEY;
@@ -132,6 +151,16 @@ export async function POST(req: NextRequest) {
       triageData = { ...fb, source: "fallback" };
     }
 
+    // If AI or Fallback determined intent is NOT complaint, do not create a ticket!
+    if (triageData.intent && triageData.intent !== "complaint") {
+      return NextResponse.json({
+        is_ticket: false,
+        intent: triageData.intent,
+        bot_reply: triageData.suggested_action,
+        message: triageData.suggested_action || `Message categorized as ${triageData.intent}. No ticket created.`,
+      });
+    }
+
     const existingTickets = getAllTickets();
 
     // 2. Duplicate clustering
@@ -163,7 +192,7 @@ export async function POST(req: NextRequest) {
       created_at: createdAtIso,
       raw_text: rawText,
       image_url: body.image_url || (body.image_base64 ? `data:${body.image_mime || "image/jpeg"};base64,${body.image_base64}` : undefined),
-      
+      intent: "complaint",
       category: triageData.category,
       severity: triageData.severity,
       severity_reason: triageData.severity_reason,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SYSTEM_PROMPT, IMAGE_PROMPT_INSTRUCTION } from "@/lib/prompts";
 import { fallbackTriage } from "@/lib/fallback";
+import { preFilterIntent } from "@/lib/intent";
 import { TriageResultSchema, type TriageResult } from "@/lib/schema";
 
 interface TriageRequestBody {
@@ -100,6 +101,29 @@ export async function POST(req: NextRequest) {
   const rawText = body.text?.trim();
   if (!rawText || rawText.length < 2) {
     return NextResponse.json({ error: "Complaint text is required (min 2 characters)" }, { status: 400 });
+  }
+
+  // 1. Rule-Based Intent Pre-Filter (Runs before AI call)
+  const pre = preFilterIntent(rawText);
+  if (pre.isPreFiltered && pre.intent !== "complaint") {
+    return NextResponse.json({
+      intent: pre.intent,
+      category: "Other",
+      severity: "Low",
+      severity_reason: `Input detected as ${pre.intent}.`,
+      department: "Ward Office",
+      summary: rawText.slice(0, 80),
+      detected_language: "English",
+      translated_text: rawText,
+      location_hint: "",
+      confidence: 0.98,
+      suggested_action: pre.botReply || "Respond without creating a ticket.",
+      urgency_signals: [],
+      source: "fallback",
+      is_ticket: false,
+      bot_reply: pre.botReply,
+      extracted_ticket_id: pre.extractedTicketId,
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
