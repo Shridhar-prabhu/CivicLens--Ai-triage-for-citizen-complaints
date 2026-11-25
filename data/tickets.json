@@ -1,5 +1,61 @@
 [
   {
+    "id": "CVL-101305",
+    "created_at": "2026-11-21T09:08:21.305Z",
+    "raw_text": "Electric wire has fallen on the footpath outside Govt Primary School, 5th Cross, Jayanagar. Kids walk here every morning.",
+    "lat": 12.925,
+    "lng": 77.5938,
+    "address_text": "5th Cross, Jayanagar, Bengaluru",
+    "location_source": "map_pin",
+    "intent": "complaint",
+    "category": "Electricity",
+    "severity": "High",
+    "severity_reason": "Near a sensitive or crowded place (school, hospital or similar), so severity is raised.",
+    "department": "Electricity Dept / Streetlight Cell",
+    "summary": "Electric wire has fallen on the footpath outside Govt Primary School, 5th Cross, Jayanagar. Kids wal",
+    "detected_language": "English (or romanised)",
+    "translated_text": "Electric wire has fallen on the footpath outside Govt Primary School, 5th Cross, Jayanagar. Kids walk here every morning.",
+    "location_hint": "5th Cross, Jayanagar, Bengaluru",
+    "confidence": 0.6000000000000001,
+    "suggested_action": "Verify on site; this ticket was triaged by the keyword fallback.",
+    "urgency_signals": [
+      "school",
+      "kids"
+    ],
+    "image_changed_result": false,
+    "source": "fallback",
+    "status": "open",
+    "assigned_to": "Unassigned",
+    "priority_score": 70,
+    "priority_breakdown": {
+      "base_severity_score": 35,
+      "sensitive_proximity_boost": 20,
+      "duplicate_frequency_boost": 15,
+      "aging_boost": 0,
+      "total_score": 70,
+      "explanation": "Base severity (High): 35 pts • Sensitive location proximity: +20 pts • Duplicate cluster reports (4 citizens): +15 pts"
+    },
+    "sla_hours": 24,
+    "sla_deadline": "2026-11-22T09:08:21.304Z",
+    "is_overdue": false,
+    "cluster_id": "cluster-wire-jayanagar",
+    "duplicate_count": 4,
+    "possible_duplicate_of": "CVL-101001",
+    "duplicate_distance_meters": 2,
+    "duplicate_note": "~2 m from #CVL-101001",
+    "needs_human_review": false,
+    "is_overridden": false,
+    "audit_trail": [
+      {
+        "id": "evt-1795252101305",
+        "timestamp": "2026-11-21T09:08:21.305Z",
+        "actor": "Keyword Fallback Engine",
+        "action": "TRIAGED",
+        "details": "Ticket generated via FALLBACK. Assigned severity High -> Electricity Dept / Streetlight Cell. Priority Score: 70/100."
+      }
+    ]
+  },
+  {
     "id": "CVL-101001",
     "created_at": "2026-11-21T06:21:35.926Z",
     "raw_text": "Electric wire has fallen on the footpath outside Govt Primary School, 5th Cross, Jayanagar. Kids walk here every morning.",
@@ -37,7 +93,7 @@
     },
     "sla_hours": 2,
     "sla_deadline": "2026-11-21T08:21:35.927Z",
-    "is_overdue": false,
+    "is_overdue": true,
     "duplicate_count": 4,
     "cluster_id": "cluster-wire-jayanagar",
     "duplicate_note": "Cluster Lead (3 nearby reports within 45m)",
@@ -239,7 +295,7 @@
     },
     "sla_hours": 2,
     "sla_deadline": "2026-11-21T08:36:35.927Z",
-    "is_overdue": false,
+    "is_overdue": true,
     "duplicate_count": 5,
     "cluster_id": "cluster-water-pipe",
     "needs_human_review": false,
@@ -563,7 +619,7 @@
     ],
     "image_changed_result": false,
     "source": "ai",
-    "status": "open",
+    "status": "resolved",
     "assigned_to": "Ward 151 Infrastructure Gang",
     "priority_score": 45,
     "priority_breakdown": {
@@ -592,6 +648,13 @@
         "actor": "Gemini 1.5 Flash (AI)",
         "action": "TRIAGED",
         "details": "Medium severity: routine road defect clustered with #CVL-101002 (~35m distance)."
+      },
+      {
+        "id": "evt-1795251130279",
+        "timestamp": "2026-11-21T08:52:10.279Z",
+        "actor": "Er. Ramesh Sharma",
+        "action": "STATUS_CHANGE",
+        "details": "Status changed from open to resolved."
       }
     ]
   },
@@ -775,7 +838,7 @@
     "urgency_signals": [],
     "image_changed_result": false,
     "source": "ai",
-    "status": "open",
+    "status": "resolved",
     "assigned_to": "Traffic Markings Wing",
     "priority_score": 22,
     "priority_breakdown": {
@@ -799,6 +862,13 @@
         "actor": "Gemini 1.5 Flash (AI)",
         "action": "TRIAGED",
         "details": "Assigned Low severity for road repainting."
+      },
+      {
+        "id": "evt-1795252122721",
+        "timestamp": "2026-11-21T09:08:42.722Z",
+        "actor": "Er. Ramesh Sharma",
+        "action": "STATUS_CHANGE",
+        "details": "Status changed from open to resolved."
       }
     ]
   },
